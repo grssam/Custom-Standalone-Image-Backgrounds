@@ -36,16 +36,6 @@
   opacity: 0;
 }
 
-#custom-standalone-image-side-panel[pinned=true] {
-  display: inline-block !important;
-  float: left !important;
-  position: static !important;
-  left: 0px;
-  height: 100%;
-  width: 96px;
-  top: 0px;
-}
-
 #standalone-image-pane-pinner {
   margin: 20px auto;
   clear: both;
