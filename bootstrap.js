@@ -19,7 +19,7 @@ const PRESET_PREF = "extensions.customStandaloneImageBackgrounds.customPresets";
 
 let backgroundPresets = [];
 
-let watchingDocuments = {};
+let watchingBrowsers = {};
 
 function disable(id) {
   AddonManager.getAddonByID(id, function(addon) {
@@ -81,9 +81,13 @@ function loadStyleSheet() {
 function addPinnerToPane(aDocument, aPane) {
   let pinDiv = aDocument.createElementNS(HTML, 'div');
   pinDiv.id = "standalone-image-pane-pinner";
-  pinDiv.onclick = function() {
+  let onPinClick = function() {
     aPane.setAttribute("pinned", "true" !== aPane.getAttribute("pinned"));
   };
+  pinDiv.addEventListener("click", onPinClick, false);
+  unload(function() {
+    pinDiv.removeEventListener("click", onPinClick, false);
+  }, aDocument.defaultView);
   aPane.appendChild(pinDiv);
 }
 
@@ -97,7 +101,7 @@ function addPresetToPane(aDocument, aPane, aPreset, aIndex, aForcedIdnex) {
   if (aForcedIdnex == aIndex) {
     presetDiv.setAttribute("checked", true);
   }
-  presetDiv.onmouseup = function(event) {
+  let onPresetMouseup = function(event) {
     if (event.button == 0) {
       if (!event.target.hasAttribute("checked")) {
         aDocument.body.style.background = aPreset;
@@ -126,21 +130,25 @@ function addPresetToPane(aDocument, aPane, aPreset, aIndex, aForcedIdnex) {
       backgroundPresets.splice(aIndex, 1);
       Services.prefs.setCharPref(PRESET_PREF, JSON.stringify(tempPresets));
       presetDiv = null;
-      for each (let doc in watchingDocuments) {
-        createPane(doc);
-        doc.body.style.background = backgroundPresets[
+      for each (let browser in watchingBrowsers) {
+        createPane(browser.contentDocument);
+        browser.contentDocument.body.style.background = backgroundPresets[
           Services.prefs.getIntPref(INDEX_PREF)
         ];
       }
     }
   };
+  presetDiv.addEventListener("mouseup", onPresetMouseup, false);
+  unload(function() {
+    presetDiv.removeEventListener("mouseup", onPresetMouseup, false);
+  }, aDocument.defaultView);
   aPane.appendChild(presetDiv);
 }
 
 function addAdderToPane(aDocument, aPane) {
   let pinDiv = aDocument.createElementNS(HTML, 'div');
   pinDiv.id = "standalone-image-pane-adder";
-  pinDiv.addEventListener("click", function() {
+  let onPinClick = function() {
     let newPreset = aDocument.defaultView.prompt("Enter the CSS 'background' value","");
     if (newPreset != null && newPreset != "") {
       let tempPresets = JSON.parse(Services.prefs.getCharPref(PRESET_PREF));
@@ -149,12 +157,16 @@ function addAdderToPane(aDocument, aPane) {
       Services.prefs.setIntPref(INDEX_PREF, tempPresets.length + 2);
       Services.prefs.setCharPref(PRESET_PREF, JSON.stringify(tempPresets));
       aDocument.body.style.background = newPreset;
-      for (let uuid in watchingDocuments) {
-        createPane(watchingDocuments[uuid],
+      for (let uuid in watchingBrowsers) {
+        createPane(watchingBrowsers[uuid].contentDocument,
                    aDocument.body.getAttribute("uuid") != uuid);
       }
     }
-  });
+  };
+  pinDiv.addEventListener("click", onPinClick, false);
+  unload(function() {
+    pinDiv.removeEventListener("click", onPinClick, false);
+  }, aDocument.defaultView);
   aPane.appendChild(pinDiv);
 }
 
@@ -203,7 +215,10 @@ let applyCustomBackground = {
       let r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
       return v.toString(16);
     });
-    watchingDocuments[uuid] = doc;
+    watchingBrowsers[uuid] = Services.wm
+                                     .getMostRecentWindow("navigator:browser")
+                                     .gBrowser
+                                     .getBrowserForDocument(doc);
     doc.body.setAttribute("uuid", uuid);
 
     let img = doc.body.firstChild;
@@ -212,8 +227,10 @@ let applyCustomBackground = {
     createPane(doc);
 
     unload(function() {
+      win.console.log("unloading");
       try {
-        delete watchingDocuments[doc.body.getAttribute("uuid")];
+        watchingBrowsers[uuid] = null;
+        delete watchingBrowsers[uuid];
       } catch(ex) {}
       try {
         doc.body.style.background = DEFAULT_BACKGROUND;
@@ -277,7 +294,7 @@ function startup(data, reason) {
                            'content-document-global-created',
                            false);
   unload(function() {
-    watchingDocuments = null;
+    watchingBrowsers = null;
     Services.obs.removeObserver(applyCustomBackground,
                                 'content-document-global-created',
                                 false);
