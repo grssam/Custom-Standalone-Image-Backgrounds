@@ -1,0 +1,104 @@
+#custom-standalone-image-side-panel {
+  min-width: 96px !important;
+  position: fixed !important;
+  display: block !important;
+  left: 0px !important;
+  top: 0px !important;
+  min-height: 100% !important;
+  height: 100% !important;
+  z-index: 10000 !important;
+  box-shadow: inset -1px 0px 1px 0px rgb(20,20,20);
+  background: url("chrome://global/skin/media/imagedoc-darknoise.png") repeat scroll 0% 0%;
+  background-color: rgb(20,20,20);
+  border-right: 1px solid rgba(71,71,71,0.5);
+  -moz-transform-origin: 100% 0px;
+  -moz-transition-property: -moz-transform, margin, opacity, background-color;
+  -moz-transition-duration: 250ms, 200ms, 550ms, 250ms;
+  -moz-transition-delay: 300ms, 0ms, 0ms, 300ms;
+  -moz-transition-timing-function: ease-in;
+}
+
+#custom-standalone-image-side-panel:not(:hover):not([pinned=true]) {
+  -moz-transform: rotate(45deg);
+  margin: -24px 0px 0px -24px !important;
+  opacity: 0.65;
+  background-color: rgb(50,50,50);
+  -moz-transition-delay: 0ms, 350ms, 0ms, 0ms;
+}
+
+#custom-standalone-image-side-panel * {
+  -moz-transition: opacity 250ms ease-in 300ms;
+  opacity: 1;
+}
+
+#custom-standalone-image-side-panel:not(:hover):not([pinned=true]) * {
+  -moz-transition: opacity 250ms ease-in 0ms;
+  opacity: 0;
+}
+
+#custom-standalone-image-side-panel[pinned=true] {
+  display: inline-block !important;
+  float: left !important;
+  position: static !important;
+  left: 0px;
+  height: 100%;
+  width: 96px;
+  top: 0px;
+}
+
+#standalone-image-pane-pinner {
+  margin: 20px auto;
+  clear: both;
+  display: block;
+  width: 56px;
+  height: 40px;
+  border-radius: 4px;
+  border: 1px solid rgba(15,15,15,0);
+  background-image: url("chrome://custom-standalone-image-backgrounds/skin/images/unpinned.png");
+  background-repeat: no-repeat;
+  background-position: center center;
+}
+
+#custom-standalone-image-side-panel[pinned=true] > #standalone-image-pane-pinner {
+  box-shadow: inset 0px 0px 3px 2px rgba(16,16,16,0.75), 0px 1px 1px 0px rgba(40,40,40,0.6);
+  border: 1px solid rgba(15,15,15,0.8);
+  background-color: rgba(15,15,15,0.25);
+  background-image: url("chrome://custom-standalone-image-backgrounds/skin/images/pinned.png");
+}
+
+#custom-standalone-image-side-panel:not([pinned=true]) > #standalone-image-pane-pinner:hover {
+  box-shadow: inset 0px 0px 3px 2px rgba(16,16,16,0.75);
+  border: 1px solid rgba(15,15,15,0.5);
+  background-color: rgba(15,15,15,0.15);
+}
+
+#standalone-image-pane-adder {
+  margin: 20px auto;
+  clear: both;
+  display: block;
+  width: 56px;
+  height: 40px;
+  cursor: pointer;
+  background-image: url("chrome://custom-standalone-image-backgrounds/skin/images/add-normal.png");
+  background-repeat: no-repeat;
+  background-position: center center;
+}
+
+#standalone-image-pane-adder:hover:active {
+  background-image: url("chrome://custom-standalone-image-backgrounds/skin/images/add-active.png");
+}
+
+.custom-standalone-image-preset {
+  margin: 20px auto;
+  clear: both;
+  display: block;
+  width: 56px;
+  height: 40px;
+  border: 1px solid rgba(15,15,15,0.9);
+  cursor: pointer;
+}
+
+.custom-standalone-image-preset[checked] {
+  box-shadow: inset 0px 0px 1px 0px rgb(32,32,32), 0px 0px 3px 3px rgba(76,165,255,0.5);
+  border: 1px solid rgb(76,165,255) !important;
+}
