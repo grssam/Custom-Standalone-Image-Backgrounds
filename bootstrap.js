@@ -123,16 +123,16 @@ function addPresetToPane(aDocument, aPane, aPreset, aIndex, aForcedIdnex) {
           Math.min(aIndex + 1,backgroundPresets.length - 2)
         ];
       }
-      else if (aIndex < Services.prefs.getIntPref(INDEX_PREF)) {
+      else if (aIndex <= Services.prefs.getIntPref(INDEX_PREF)) {
         Services.prefs.setIntPref(INDEX_PREF, aIndex - 1);
       }
       tempPresets.splice(aIndex - 3, 1);
       backgroundPresets.splice(aIndex, 1);
       Services.prefs.setCharPref(PRESET_PREF, JSON.stringify(tempPresets));
       presetDiv = null;
-      for each (let browser in watchingBrowsers) {
-        createPane(browser.contentDocument);
-        browser.contentDocument.body.style.background = backgroundPresets[
+      for (let doc in getImagedocuments()) {
+        createPane(doc);
+        doc.body.style.background = backgroundPresets[
           Services.prefs.getIntPref(INDEX_PREF)
         ];
       }
@@ -157,9 +157,8 @@ function addAdderToPane(aDocument, aPane) {
       Services.prefs.setIntPref(INDEX_PREF, tempPresets.length + 2);
       Services.prefs.setCharPref(PRESET_PREF, JSON.stringify(tempPresets));
       aDocument.body.style.background = newPreset;
-      for (let uuid in watchingBrowsers) {
-        createPane(watchingBrowsers[uuid].contentDocument,
-                   aDocument.body.getAttribute("uuid") != uuid);
+      for (let doc in getImagedocuments()) {
+        createPane(doc, aDocument != doc);
       }
     }
   };
@@ -174,9 +173,8 @@ function createPane(aDocument, aPreserveSelectedIndex) {
   let leftPane = null;
   try {
     leftPane = aDocument.getElementById("custom-standalone-image-side-panel");
-  } catch(ex) {
-    return;
-  }
+  } catch(ex) {}
+
   let previousIndex = null;
   if (!leftPane) {
     // Adding the left pane
@@ -211,30 +209,14 @@ let applyCustomBackground = {
       return;
     }
 
-    let uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      let r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
-      return v.toString(16);
-    });
-    watchingBrowsers[uuid] = Services.wm
-                                     .getMostRecentWindow("navigator:browser")
-                                     .gBrowser
-                                     .getBrowserForDocument(doc);
-    doc.body.setAttribute("uuid", uuid);
-
     let img = doc.body.firstChild;
     img.style.background = "none";
 
     createPane(doc);
 
     unload(function() {
-      win.console.log("unloading");
-      try {
-        watchingBrowsers[uuid] = null;
-        delete watchingBrowsers[uuid];
-      } catch(ex) {}
       try {
         doc.body.style.background = DEFAULT_BACKGROUND;
-        doc.body.removeAttribute("uuid");
       } catch (ex) {}
       leftPane.parentNode.removeChild(leftPane);
       leftPane = null;
@@ -244,20 +226,64 @@ let applyCustomBackground = {
       Services.prefs.getIntPref(INDEX_PREF)
     ] || DEFAULT_BACKGROUND;
 
-    let changeBackground = function() {
+    if (doc.body.style.background == DEFAULT_BACKGROUND &&
+        Services.prefs.getIntPref(INDEX_PREF) != 0) {
+      Services.prefs.setIntPref(INDEX_PREF, 0);
+    }
+
+    let changeBackground = function(mutations) {
+      let styleChanged = false;
+      mutations.forEach(function(mutation) {
+        if (mutation.attributeName == "style") {
+          styleChanged = true;
+          return;
+        }
+      });
+      if (!styleChanged || img.style.background == "none") {
+        return;
+      }
+
+      observer.disconnect();
       img.style.background = "none";
       doc.body.style.background = backgroundPresets[
         Services.prefs.getIntPref(INDEX_PREF)
-      ] || DEFAULT_BACKGROUND; 
+      ] || DEFAULT_BACKGROUND;
+
+      if (doc.body.style.background == DEFAULT_BACKGROUND &&
+          Services.prefs.getIntPref(INDEX_PREF) != 0) {
+        Services.prefs.setIntPref(INDEX_PREF, 0);
+      }
+      observer.observe(img, {attributes: true});
     };
 
-    img.addEventListener('DOMAttrModified', changeBackground, false);
+    let observer = new win.MutationObserver(changeBackground);
+
+    observer.observe(img, {attributes: true});
+
     unload(function() {
-      img.removeEventListener('DOMAttrModified', changeBackground, false);
+      observer.disconnect();
+      observer = null;
       img.style.background = "white";
     }, win);
   },
 };
+
+function getImagedocuments() {
+  let windows = Services.wm.getEnumerator("navigator:browser");
+  while (windows.hasMoreElements()) {
+    let window = windows.getNext();
+    for (let tab of window.gBrowser.tabs) {
+      if (tab.hasAttribute("pending")) {
+        continue;
+      }
+      let doc = window.gBrowser.getBrowserForTab(tab).contentDocument;
+      if (!(doc instanceof doc.defaultView.ImageDocument)) {
+        continue;
+      }
+      yield doc;
+    }
+  }
+}
 
 function startup(data, reason) {
   // Initialize default preferences
@@ -275,18 +301,10 @@ function startup(data, reason) {
   loadStyleSheet();
 
   if (reason != 1) {
-    let windows = Services.wm.getEnumerator("navigator:browser");
-    while (windows.hasMoreElements()) {
-      let window = windows.getNext();
-      for (let tab of window.gBrowser.tabs) {
-        if (tab.hasAttribute("pending")) {
-          continue;
-        }
-        let doc = window.gBrowser.getBrowserForTab(tab).contentDocument;
-        applyCustomBackground.observe({document: doc},
-                                      'content-document-global-created',
-                                      null);
-      }
+    for (let doc in getImagedocuments()) {
+      applyCustomBackground.observe({document: doc},
+                                    'content-document-global-created',
+                                    null);
     }
   }
 
@@ -294,7 +312,6 @@ function startup(data, reason) {
                            'content-document-global-created',
                            false);
   unload(function() {
-    watchingBrowsers = null;
     Services.obs.removeObserver(applyCustomBackground,
                                 'content-document-global-created',
                                 false);
