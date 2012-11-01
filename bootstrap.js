@@ -115,6 +115,8 @@ function addPresetToPane(aDocument, aPane, aPreset, aIndex, aForcedIdnex) {
       }
     }
     else if (event.button == 1 && aIndex > 2) {
+      event.stopPropagation();
+      event.preventDefault();
       let tempPresets = JSON.parse(Services.prefs.getCharPref(PRESET_PREF));
       if (event.target.hasAttribute("checked")) {
         Services.prefs.setIntPref(INDEX_PREF,
@@ -138,9 +140,9 @@ function addPresetToPane(aDocument, aPane, aPreset, aIndex, aForcedIdnex) {
       }
     }
   };
-  presetDiv.addEventListener("mouseup", onPresetMouseup, false);
+  presetDiv.addEventListener("mousedown", onPresetMouseup, true);
   unload(function() {
-    presetDiv.removeEventListener("mouseup", onPresetMouseup, false);
+    presetDiv.removeEventListener("mousedown", onPresetMouseup, true);
   }, aDocument.defaultView);
   aPane.appendChild(presetDiv);
 }
@@ -165,6 +167,98 @@ function addAdderToPane(aDocument, aPane) {
   pinDiv.addEventListener("click", onPinClick, false);
   unload(function() {
     pinDiv.removeEventListener("click", onPinClick, false);
+  }, aDocument.defaultView);
+  aPane.appendChild(pinDiv);
+}
+
+function addPickerToPane(aDocument, aPane) {
+  let pinDiv = aDocument.createElementNS(HTML, 'div');
+  pinDiv.id = "standalone-image-pane-picker";
+  let onPickerClickIterator = function() {
+    while(1) {
+      let newPreset = yield startColorPicker();
+      if (newPreset != null && newPreset != "") {
+        let tempPresets = JSON.parse(Services.prefs.getCharPref(PRESET_PREF));
+        tempPresets.push(newPreset);
+        backgroundPresets.push(newPreset);
+        Services.prefs.setIntPref(INDEX_PREF, tempPresets.length + 2);
+        Services.prefs.setCharPref(PRESET_PREF, JSON.stringify(tempPresets));
+        aDocument.body.style.background = newPreset;
+        for (let doc in getImagedocuments()) {
+          createPane(doc, aDocument != doc);
+        }
+      }
+      yield null;
+    }
+  };
+
+  let onPickerClick = onPickerClickIterator();
+  let startColorPicker = function() {
+    let canvas = aDocument.createElementNS(HTML, "canvas");
+    let colorText = aDocument.createElementNS(HTML, "div");
+    canvas.id = "standalone-image-color-preview";
+    colorText.id = "standalone-image-color-text";
+    canvas.width = 1;
+    canvas.height = 1;
+    let ctx = canvas.getContext('2d');
+    ctx.drawWindow(aDocument.defaultView, 0, 0, 1, 1, "rgba(0,0,0,0)");
+    ctx.font = "16px sans-serif";
+    ctx.lineWidth = 0.5;
+
+    aDocument.body.appendChild(canvas);
+    aDocument.body.appendChild(colorText);
+    aDocument.body.firstChild.style.cursor = "crosshair";
+
+    let onMouseMove = function(e) {
+      canvas.style.top = (e.clientY + 10) + "px";
+      colorText.style.top = (e.clientY - 10) + "px";
+      colorText.style.left = (e.clientX + 15) + "px";
+      canvas.style.left = (e.clientX + 30) + "px";
+      let ctx = canvas.getContext('2d');
+      ctx.drawWindow(aDocument.defaultView,
+                     e.clientX + aDocument.defaultView.scrollX,
+                     e.clientY + aDocument.defaultView.scrollY,
+                     1, 1, "rgba(0,0,0,0)");
+      canvas.style.width = "50px";
+      canvas.style.height = "50px";
+      let c = ctx.getImageData(0, 0, 1, 1).data;
+      colorText.style.color = (((c[0] + c[1] + c[2])/3 < 128) ? "white" : "black");
+      colorText.textContent = "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
+    };
+    let onMouseClick = function(e) {
+      aDocument.removeEventListener("mousedown", onMouseClick, true);
+      aDocument.removeEventListener("mousemove", onMouseMove, true);
+      aDocument.removeEventListener("keypress", onKeyPress, true);
+      e.stopPropagation();
+      e.preventDefault();
+      aDocument.body.firstChild.style.cursor = "default";
+      canvas.parentNode.removeChild(canvas);
+      colorText.parentNode.removeChild(colorText);
+      let c = canvas.getContext('2d').getImageData(0, 0, 1, 1).data;
+      onPickerClick.send("rgb(" + c[0] + "," + c[1] + "," + c[2] + ")");
+    };
+    let onKeyPress = function(e) {
+      if (e.keyCode == e.DOM_VK_ESCAPE) {
+        aDocument.removeEventListener("mousedown", onMouseClick, true);
+        aDocument.removeEventListener("keypress", onKeyPress, true);
+        aDocument.removeEventListener("mousemove", onMouseMove, true);
+        e.stopPropagation();
+        e.preventDefault();
+        aDocument.body.firstChild.style.cursor = "default";
+        canvas.parentNode.removeChild(canvas);
+        colorText.parentNode.removeChild(colorText);
+        onPickerClick.send("");
+      }
+    };
+    aDocument.addEventListener("keypress", onKeyPress, true);
+    aDocument.addEventListener("mousedown", onMouseClick, true);
+    aDocument.addEventListener("mousemove", onMouseMove, true);
+    return null;
+  };
+
+  pinDiv.addEventListener("click", function() onPickerClick.next(), false);
+  unload(function() {
+    pinDiv.removeEventListener("click", function() onPickerClick.next(), false);
   }, aDocument.defaultView);
   aPane.appendChild(pinDiv);
 }
@@ -199,6 +293,7 @@ function createPane(aDocument, aPreserveSelectedIndex) {
                     aPreserveSelectedIndex === true? previousIndex: null);
   });
   addAdderToPane(aDocument, leftPane);
+  addPickerToPane(aDocument, leftPane);
 }
 
 let applyCustomBackground = {
@@ -245,14 +340,6 @@ let applyCustomBackground = {
 
       observer.disconnect();
       img.style.background = "none";
-      doc.body.style.background = backgroundPresets[
-        Services.prefs.getIntPref(INDEX_PREF)
-      ] || DEFAULT_BACKGROUND;
-
-      if (doc.body.style.background == DEFAULT_BACKGROUND &&
-          Services.prefs.getIntPref(INDEX_PREF) != 0) {
-        Services.prefs.setIntPref(INDEX_PREF, 0);
-      }
       observer.observe(img, {attributes: true});
     };
 

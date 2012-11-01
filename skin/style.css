@@ -74,8 +74,39 @@
   background-position: center center;
 }
 
-#standalone-image-pane-adder:hover:active {
-  background-image: url("chrome://custom-standalone-image-backgrounds/skin/images/add-active.png");
+#standalone-image-pane-adder:hover {
+  background-image: url("chrome://custom-standalone-image-backgrounds/skin/images/add-hover.png");
+}
+
+#standalone-image-pane-picker {
+  margin: 20px auto;
+  clear: both;
+  display: block;
+  width: 56px;
+  height: 40px;
+  cursor: pointer;
+  background-image: url("chrome://custom-standalone-image-backgrounds/skin/images/picker-normal.png");
+  background-repeat: no-repeat;
+  background-position: center center;
+}
+
+#standalone-image-pane-picker:hover {
+  background-image: url("chrome://custom-standalone-image-backgrounds/skin/images/picker-hover.png");
+}
+
+#standalone-image-color-preview {
+  display: block;
+  position: fixed;
+  min-width: 50px;
+  min-height: 50px;
+  border: solid 2px #111;
+}
+
+#standalone-image-color-text {
+  display: block;
+  position: fixed;
+  min-width: 50px;
+  min-height: 20px;
 }
 
 .custom-standalone-image-preset {
