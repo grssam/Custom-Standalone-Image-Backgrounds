@@ -109,6 +109,10 @@
   min-height: 20px;
 }
 
+body > img[custom-standalone-background-panel-pinned=true] {
+  left: 100px !important;
+}
+
 .custom-standalone-image-preset {
   margin: 20px auto;
   clear: both;

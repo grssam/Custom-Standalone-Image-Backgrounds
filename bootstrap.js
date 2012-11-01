@@ -83,10 +83,14 @@ function addPinnerToPane(aDocument, aPane) {
   pinDiv.id = "standalone-image-pane-pinner";
   let onPinClick = function() {
     aPane.setAttribute("pinned", "true" !== aPane.getAttribute("pinned"));
+    aDocument.querySelector("img")
+             .setAttribute("custom-standalone-background-panel-pinned",
+                           aPane.getAttribute("pinned"));
   };
   pinDiv.addEventListener("click", onPinClick, false);
   unload(function() {
     pinDiv.removeEventListener("click", onPinClick, false);
+    aDocument.querySelector("img").removeAttribute("panel-pinned");
   }, aDocument.defaultView);
   aPane.appendChild(pinDiv);
 }
