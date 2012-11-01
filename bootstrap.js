@@ -129,11 +129,16 @@ function addPresetToPane(aDocument, aPane, aPreset, aIndex, aForcedIdnex) {
           Math.min(aIndex + 1,backgroundPresets.length - 2)
         ];
       }
-      else if (aIndex <= Services.prefs.getIntPref(INDEX_PREF)) {
-        Services.prefs.setIntPref(INDEX_PREF, aIndex - 1);
+      else if (aIndex < Services.prefs.getIntPref(INDEX_PREF)) {
+        Services.prefs.setIntPref(INDEX_PREF,
+                                  Math.min(Services.prefs.getIntPref(INDEX_PREF) - 1,
+                                           backgroundPresets.length - 2));
       }
       tempPresets.splice(aIndex - 3, 1);
       backgroundPresets.splice(aIndex, 1);
+      Services.prefs.setIntPref(INDEX_PREF,
+                                Math.min(Services.prefs.getIntPref(INDEX_PREF),
+                                         backgroundPresets.length - 1));
       Services.prefs.setCharPref(PRESET_PREF, JSON.stringify(tempPresets));
       presetDiv = null;
       for (let doc in getImagedocuments()) {
