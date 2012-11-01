@@ -90,7 +90,8 @@ function addPinnerToPane(aDocument, aPane) {
   pinDiv.addEventListener("click", onPinClick, false);
   unload(function() {
     pinDiv.removeEventListener("click", onPinClick, false);
-    aDocument.querySelector("img").removeAttribute("panel-pinned");
+    aDocument.querySelector("img")
+             .removeAttribute("custom-standalone-background-panel-pinned");
   }, aDocument.defaultView);
   aPane.appendChild(pinDiv);
 }
@@ -105,7 +106,7 @@ function addPresetToPane(aDocument, aPane, aPreset, aIndex, aForcedIdnex) {
   if (aForcedIdnex == aIndex) {
     presetDiv.setAttribute("checked", true);
   }
-  let onPresetMouseup = function(event) {
+  let onPresetMousedown = function(event) {
     if (event.button == 0) {
       if (!event.target.hasAttribute("checked")) {
         aDocument.body.style.background = aPreset;
@@ -141,7 +142,7 @@ function addPresetToPane(aDocument, aPane, aPreset, aIndex, aForcedIdnex) {
                                          backgroundPresets.length - 1));
       Services.prefs.setCharPref(PRESET_PREF, JSON.stringify(tempPresets));
       presetDiv = null;
-      for (let doc in getImagedocuments()) {
+      for (let doc in getImageDocuments()) {
         createPane(doc);
         doc.body.style.background = backgroundPresets[
           Services.prefs.getIntPref(INDEX_PREF)
@@ -149,9 +150,9 @@ function addPresetToPane(aDocument, aPane, aPreset, aIndex, aForcedIdnex) {
       }
     }
   };
-  presetDiv.addEventListener("mousedown", onPresetMouseup, true);
+  presetDiv.addEventListener("mousedown", onPresetMousedown, true);
   unload(function() {
-    presetDiv.removeEventListener("mousedown", onPresetMouseup, true);
+    presetDiv.removeEventListener("mousedown", onPresetMousedown, true);
   }, aDocument.defaultView);
   aPane.appendChild(presetDiv);
 }
@@ -168,7 +169,7 @@ function addAdderToPane(aDocument, aPane) {
       Services.prefs.setIntPref(INDEX_PREF, tempPresets.length + 2);
       Services.prefs.setCharPref(PRESET_PREF, JSON.stringify(tempPresets));
       aDocument.body.style.background = newPreset;
-      for (let doc in getImagedocuments()) {
+      for (let doc in getImageDocuments()) {
         createPane(doc, aDocument != doc);
       }
     }
@@ -181,9 +182,7 @@ function addAdderToPane(aDocument, aPane) {
 }
 
 function addPickerToPane(aDocument, aPane) {
-  let pinDiv = aDocument.createElementNS(HTML, 'div');
-  pinDiv.id = "standalone-image-pane-picker";
-  let onPickerClickIterator = function() {
+  function onPickerClickIterator() {
     while(1) {
       let newPreset = yield startColorPicker();
       if (newPreset != null && newPreset != "") {
@@ -193,13 +192,16 @@ function addPickerToPane(aDocument, aPane) {
         Services.prefs.setIntPref(INDEX_PREF, tempPresets.length + 2);
         Services.prefs.setCharPref(PRESET_PREF, JSON.stringify(tempPresets));
         aDocument.body.style.background = newPreset;
-        for (let doc in getImagedocuments()) {
+        for (let doc in getImageDocuments()) {
           createPane(doc, aDocument != doc);
         }
       }
       yield null;
     }
-  };
+  }
+
+  let pinDiv = aDocument.createElementNS(HTML, 'div');
+  pinDiv.id = "standalone-image-pane-picker";
 
   let onPickerClick = onPickerClickIterator();
   let startColorPicker = function() {
@@ -262,12 +264,32 @@ function addPickerToPane(aDocument, aPane) {
     aDocument.addEventListener("keypress", onKeyPress, true);
     aDocument.addEventListener("mousedown", onMouseClick, true);
     aDocument.addEventListener("mousemove", onMouseMove, true);
+    unload(function() {
+      try {
+        aDocument.removeEventListener("keypress", onKeyPress, true);
+      } catch(ex) {}
+      try {
+        aDocument.removeEventListener("mousedown", onMouseClick, true);
+      } catch(ex) {}
+      try {
+        aDocument.removeEventListener("mousemove", onMouseMove, true);
+      } catch(ex) {}
+      aDocument.body.firstChild.style.cursor = "default";
+      canvas && canvas.parentNode.removeChild(canvas);
+      colorText && colorText.parentNode.removeChild(colorText);
+      onKeyPress = onMouseClick = onMouseMove = null;
+    }, aDocument.defaultView);
     return null;
   };
 
-  pinDiv.addEventListener("click", function() onPickerClick.next(), false);
+  let next = function() {
+    onPickerClick.next();
+  };
+
+  pinDiv.addEventListener("click", next, false);
   unload(function() {
-    pinDiv.removeEventListener("click", function() onPickerClick.next(), false);
+    pinDiv.removeEventListener("click", next, false);
+    startColorPicker = onPickerClick = null;
   }, aDocument.defaultView);
   aPane.appendChild(pinDiv);
 }
@@ -364,7 +386,7 @@ let applyCustomBackground = {
   },
 };
 
-function getImagedocuments() {
+function getImageDocuments() {
   let windows = Services.wm.getEnumerator("navigator:browser");
   while (windows.hasMoreElements()) {
     let window = windows.getNext();
@@ -397,7 +419,7 @@ function startup(data, reason) {
   loadStyleSheet();
 
   if (reason != 1) {
-    for (let doc in getImagedocuments()) {
+    for (let doc in getImageDocuments()) {
       applyCustomBackground.observe({document: doc},
                                     'content-document-global-created',
                                     null);
