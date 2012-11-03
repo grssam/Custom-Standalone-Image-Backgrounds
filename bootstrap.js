@@ -19,7 +19,7 @@ const PRESET_PREF = "extensions.customStandaloneImageBackgrounds.customPresets";
 
 let backgroundPresets = [];
 
-let watchingBrowsers = {};
+let worker = null;
 
 function disable(id) {
   AddonManager.getAddonByID(id, function(addon) {
@@ -340,9 +340,25 @@ let applyCustomBackground = {
 
     createPane(doc);
 
+    let uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      let r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+      return v.toString(16);
+    });
+    doc.body.setAttribute("standalone-image-backgrounds-uuid", uuid);
+    if (doc.readyState == "complete") {
+      worker.postMessage(JSON.stringify([getImageData(doc), uuid]));
+    }
+    else {
+      img.addEventListener("load", function onLoad() {
+        img.removeEventListener("load", onLoad, true);
+        worker.postMessage(JSON.stringify([getImageData(doc), uuid]));
+      }, true);
+    }
+
     unload(function() {
       try {
         doc.body.style.background = DEFAULT_BACKGROUND;
+        doc.body.removeAttribute("standalone-image-backgrounds-uuid");
       } catch (ex) {}
       leftPane.parentNode.removeChild(leftPane);
       leftPane = null;
@@ -386,6 +402,20 @@ let applyCustomBackground = {
   },
 };
 
+function getImageData(doc) {
+  let canvas = doc.createElement('canvas'),
+      ctx = canvas.getContext('2d'),
+      width, height, ratio, imgEl;
+  imgEl = doc.body.firstChild;
+  ratio = Math.max(Math.ceil((imgEl.naturalWidth + 1)/200), Math.ceil((imgEl.naturalHeight + 1)/200));
+  width = canvas.width = imgEl.naturalWidth/ratio;
+  height = canvas.height = imgEl.naturalHeight/ratio;
+  canvas.style.imageRendering = "-moz-crisp-edges";
+  ctx.scale(1/ratio, 1/ratio);
+  ctx.drawImage(imgEl, 0, 0);
+  return [ctx.getImageData(0, 0, width, height).data, width, height];
+}
+
 function getImageDocuments() {
   let windows = Services.wm.getEnumerator("navigator:browser");
   while (windows.hasMoreElements()) {
@@ -403,6 +433,44 @@ function getImageDocuments() {
   }
 }
 
+function createWorker() {
+  // Adding the event Handler
+  function workerMessageHandler(event) {
+    let [rgb, uuid] = JSON.parse(event.data);
+    for (let doc of getImageDocuments()) {
+      if (doc.body.getAttribute("standalone-image-backgrounds-uuid") == uuid) {
+        doc.body.style.background = rgb;
+        return;
+      }
+    }
+  }
+  if (!worker) {
+    // Creating resource reference to run the worker file
+    const resourceHandler = Services.io.getProtocolHandler('resource')
+                              .QueryInterface(Ci.nsIResProtocolHandler);
+    const uuidgen = Cc["@mozilla.org/uuid-generator;1"]
+                      .getService(Ci.nsIUUIDGenerator);
+    const URI = __SCRIPT_URI_SPEC__.replace(/bootstrap\.js$/, "");
+    const alias  = "customstandalonebackgrounds" +
+                   uuidgen.generateUUID().toString();
+    resourceHandler.setSubstitution(alias, Services.io.newURI(URI + '/',
+                                                              null, null));
+
+    // Creating the worker to be used whenever by the addon
+    worker = new ChromeWorker("resource://" + alias + "/worker.js");
+
+    worker.addEventListener('message', workerMessageHandler, false);
+
+    unload(function() {
+      worker.removeEventListener('message', workerMessageHandler, false);
+      worker.terminate();
+      worker = null;
+      resourceHandler.setSubstitution(alias, null);
+    });
+  }
+
+}
+
 function startup(data, reason) {
   // Initialize default preferences
   let (branch = Services.prefs.getDefaultBranch("extensions.customStandaloneImageBackgrounds.")) {
@@ -417,6 +485,7 @@ function startup(data, reason) {
   ];
 
   loadStyleSheet();
+  createWorker();
 
   if (reason != 1) {
     for (let doc in getImageDocuments()) {
