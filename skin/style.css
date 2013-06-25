@@ -127,3 +127,9 @@ body > img[custom-standalone-background-panel-pinned=true] {
   box-shadow: inset 0px 0px 1px 0px rgb(32,32,32), 0px 0px 3px 3px rgba(76,165,255,0.5);
   border: 1px solid rgb(76,165,255) !important;
 }
+
+@media print {
+  #custom-standalone-image-side-panel {
+    display: none;
+  }
+}
