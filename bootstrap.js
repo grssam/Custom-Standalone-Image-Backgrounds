@@ -331,7 +331,7 @@ let applyCustomBackground = {
   observe: function(aSubject, aTopic, aData) {
     let doc = aSubject.document;
     let win = doc.defaultView;
-    if (!(doc instanceof win.ImageDocument)) {
+    if (typeof doc.imageResizingEnabled !== 'boolean') {
       return;
     }
 
@@ -425,7 +425,7 @@ function getImageDocuments() {
         continue;
       }
       let doc = window.gBrowser.getBrowserForTab(tab).contentDocument;
-      if (!(doc instanceof doc.defaultView.ImageDocument)) {
+      if (typeof doc.imageResizingEnabled !== 'boolean') {
         continue;
       }
       yield doc;
